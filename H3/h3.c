@@ -8,6 +8,7 @@
 #include <fcntl.h>
 
 #define MAX 100
+#define ERROR 999999
 
 int parse_expr( char expr[], int process_id );
 int pipe_calc(char* expr);
@@ -41,7 +42,10 @@ int pipe_calc(char* expr)
     // printf("CHILD %d: result is %d\n", (int)getpid(), rst);
     sprintf(rst_buf, "%d", rst);
     write( p[1], rst_buf, strlen(rst_buf) );
-    printf("PROCESS %d: Sending '%s' on pipe to parent\n", (int)getpid(), rst_buf);
+    if ( rst != ERROR )
+    {
+      printf("PROCESS %d: Sending '%s' on pipe to parent\n", (int)getpid(), rst_buf);
+    }
     exit(0);
   }
   else /* pid > 0 */
@@ -101,8 +105,9 @@ int parse_expr( char expr[], int process_id )
 
     if (oprt != '+' && oprt != '-' && oprt != '*' && oprt != '/')
     {
-      printf("ERROR: unknown '%s' operator\n", &oprt);
-      exit(1);
+      printf("PROCESS %d: ERROR: unknown '%c' operator\n", (int)getpid(), oprt);
+      // exit(1);
+      return ERROR;
     }
     printf("PROCESS %d: Starting '%c' operation\n", (int)getpid(), oprt);
 
@@ -144,6 +149,11 @@ int parse_expr( char expr[], int process_id )
       tmp_buf[end_index - start_index] = '\0';
 
       ret = pipe_calc(tmp_buf);
+      if ( ret == ERROR )
+      {
+        return ERROR;
+      }
+
       oprd[oprd_count] = ret;
       oprd_count += 1;
       i++;
@@ -152,7 +162,7 @@ int parse_expr( char expr[], int process_id )
     if ( oprd_count < 2 )
     {
       printf("ERROR: not enough operands\n");
-      return EXIT_FAILURE;
+      return ERROR;
     }
 
     // compute
@@ -219,6 +229,10 @@ int main( int argc, char* argv[])
   }
 
   int rst = parse_expr(expr_buf, 0);
+  if ( rst == ERROR )
+  {
+    return EXIT_FAILURE;
+  }
   printf("PROCESS %d: Final answer is '%d'\n", (int)getpid(), rst);
 
   return EXIT_SUCCESS;
