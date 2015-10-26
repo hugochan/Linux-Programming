@@ -4,7 +4,6 @@
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <string.h>
-#include <regex.h>
 #include <fcntl.h>
 
 #define MAX 100
