@@ -105,10 +105,10 @@ int parse_expr( char expr[] )
 
     if (oprt != '+' && oprt != '-' && oprt != '*' && oprt != '/')
     {
-      printf("THREAD %d: ERROR: unknown '%c' operator\n", (unsigned int)pthread_self(), oprt);
+      printf("THREAD %u: ERROR: unknown '%c' operator\n", (unsigned int)pthread_self(), oprt);
       exit(1);
     }
-    printf("THREAD %d: Starting '%c' operation\n", (unsigned int)pthread_self(), oprt);
+    printf("THREAD %u: Starting '%c' operation\n", (unsigned int)pthread_self(), oprt);
 
     int * rst = (int *)malloc( sizeof( int ) );
     short * isfst_done = (short *)malloc( sizeof( short ) );
@@ -238,7 +238,7 @@ int main( int argc, char* argv[])
   }
 
   int rst = parse_expr(expr_buf);
-  printf("THREAD %d: Final answer is '%d'\n", (unsigned int)pthread_self(), rst);
+  printf("THREAD %u: Final answer is '%d'\n", (unsigned int)pthread_self(), rst);
 
   return EXIT_SUCCESS;
 }
