@@ -13,7 +13,6 @@
 #define BUFFER_SIZE 1024
 #define BLOCK_SIZE 4096
 #define DISK_PLACE_HOLDER '.'
-#define ROOT "./.storage/"
 
 /* global mutex variable */
 pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
@@ -43,7 +42,7 @@ void initialize_str_arr(char** hash_arr) {
 }
 
 //insert the file name to the hash style array that holds the names of all the files
-//return the index of the slot that the file being inserted 
+//return the index of the slot that the file being inserted
 //and this index can be used to get the file label in disk's buffer
 int insert_to_str_arr(char** hash_arr, char* f_name) {
   int i = 0;
@@ -64,7 +63,7 @@ int check_file_exists(char** hash_arr, char* f_name) {
   for(; i < 26; i++) {
     if (hash_arr[i] != NULL) {
       if (strcmp(hash_arr[i], f_name) == 0) return 1;
-    } 
+    }
   }
   return -1;
 }
@@ -185,146 +184,15 @@ int disk_display(Disk * disk)
 int parse_cmd(char * cmd, Disk * disk)
 {
   printf("the command is %s\n", cmd);
-  if (strcmp(cmd, "DIR\n") == 0) printf("yes, it is DIR\n");
-  // char * buff;
   char * p = NULL;
   char delim[] = " ";
-  // char * root = NULL;
   char filename[100];
   FILE * fp;
-
-  p = strtok(cmd, delim);
-  int n_bytes, n_b, n_clusters;
-  char file_content[1024];
-  int bytes_offset, length;
   int ret = 0;
-  if (strcmp(p, "STORE") == 0)
+
+  if (strcmp(cmd, "DIR\r\n") == 0)
   {
-    // ADD <filename> <bytes>\n<file-contents>
-    p = strtok(NULL, delim);
-    if (p == NULL) ret = -1;
-    else
-    {
-      strcpy(filename, p);
-
-      if (check_file_exists(disk->fname_to_label, filename) != -1) {
-        perror("ERROR: FILE EXISTS\n");
-        return -1;
-      }
-      
-      p = strtok(NULL, "\\n");
-      if (p == NULL) ret = -1;
-      else
-      {
-        n_bytes = atoi(p);
-
-        if (n_bytes % BLOCK_SIZE == 0) n_b = n_bytes / BLOCK_SIZE;
-        else n_b = n_bytes / BLOCK_SIZE + 1;
-
-        p = strtok(NULL, "\r\n");
-        if (p == NULL) ret = -1;
-
-        else
-        {
-          strcpy(file_content, p + 1);
-
-          pthread_mutex_lock( &mutex );
-          int ascii_val = insert_to_str_arr(disk->fname_to_label, filename);
-          pthread_mutex_unlock( &mutex );
-
-          if (ascii_val == -1) {
-            printf("[thread %d] Disk already has enough files\n", (unsigned int)pthread_self());
-            //pthread_mutex_unlock( &mutex );
-            return -1;
-          } 
-
-          char label = (char) 65+ascii_val;
-          //ret = disk_insert(disk, filename[0], n_b, &n_clusters);
-          pthread_mutex_lock( &mutex );
-          ret = disk_insert(disk, label, n_b, &n_clusters);
-          pthread_mutex_unlock( &mutex );
-          if (ret == -1) {
-            printf( "[thread %d] Disk is full\n", (unsigned int)pthread_self() );
-            return -1;
-          }
-
-          //if (!access(ROOT, F_OK)) ret = mkdir(ROOT, S_IRWXU | S_IRWXG | S_IRWXO);
-          // root = strcat(root, filename);
-          // printf("%s", root);
-          char serv_name[1024];
-          snprintf(serv_name, sizeof(serv_name), "storage/%s", filename);
-          //FILE* f = fopen(serv_name, "w");
-          fp = fopen(serv_name, "w+");
-          if (fp == 0)
-          {
-            printf( "[thread %d] Could not open file\n", (unsigned int)pthread_self());
-            return -1;
-          }
-                
-          fprintf(fp, "%s", file_content);
-          fclose(fp);
-          printf("[thread %d] Stored file '%c' (%d bytes; %d blocks; ", (unsigned int)pthread_self(), filename[0], n_bytes, n_b);
-          if (n_clusters == 1) printf("1 cluster)\n");
-          else printf("%d clusters)\n", n_clusters);
-  
-          printf("[thread %d] Simulated Clustered Disk Space Allocation:\n", (unsigned int)pthread_self());
-          disk_display(disk);
-        }
-      }
-    }
-  }
-  else if (strcmp(p, "READ") == 0)
-  {
-    // READ <filename> <byte-offset> <length>\n
-    p = strtok(NULL, delim);
-    if (p == NULL)
-    {
-       ret = -1;
-    }
-    else
-    {
-      strcpy(filename, p);
-      printf("filename: %s", filename);
-      p = strtok(NULL, delim);
-      if (p == NULL) ret = -1;
-      else
-      {
-        bytes_offset = atoi(p);
-        printf("bytes_offset: %d\n", bytes_offset);
-        p = strtok(NULL, delim);
-        if (p == NULL) ret = -1;
-        else
-        {
-          length = atoi(p);
-          printf("length: %d\n", length);
-        }
-      }
-    }
-
-  }
-  else if (strcmp(p, "DELETE") == 0)
-  {
-    // DELETE <filename>\n
-    p = strtok(NULL, delim);
-    if (p == NULL) ret = -1;
-    else
-    {
-      strcpy(filename, p);
-      printf("filename: %s", filename);
-      // remove the file
-
-      // to do ????
-      pthread_mutex_lock( &mutex );
-      n_b = disk_delete(disk, filename[0]);
-      pthread_mutex_unlock( &mutex );
-
-      printf("[thread %d] Deleted %s file '%c' (deallocated %d blocks)\n", (unsigned int)pthread_self(), filename, filename[0], n_b);
-      printf("[thread %d] Simulated Clustered Disk Space Allocation:\n", (unsigned int)pthread_self());
-      disk_display(disk);
-    }
-  }
-  else if (strcmp(p, "DIR") == 0)
-  {
+    printf("yes, it is DIR\n");
     // DIR\n
     printf("There are currently %d files on the disk\n", disk->file_num);
     char** f_array = malloc(disk->file_num * sizeof(char*));
@@ -335,7 +203,136 @@ int parse_cmd(char * cmd, Disk * disk)
       printf("%s\n", f_array[i]);
     }
   }
-  else ret = -1;
+  else
+  {
+    p = strtok(cmd, delim);
+    int n_bytes, n_b, n_clusters;
+    char file_content[1024];
+    int bytes_offset, length;
+    if (strcmp(p, "STORE") == 0)
+    {
+      // ADD <filename> <bytes>\n<file-contents>
+      p = strtok(NULL, delim);
+      if (p == NULL) ret = -1;
+      else
+      {
+        strcpy(filename, p);
+
+        if (check_file_exists(disk->fname_to_label, filename) != -1) {
+          perror("ERROR: FILE EXISTS\n");
+          return -1;
+        }
+
+        p = strtok(NULL, "\\n");
+        if (p == NULL) ret = -1;
+        else
+        {
+          n_bytes = atoi(p);
+
+          if (n_bytes % BLOCK_SIZE == 0) n_b = n_bytes / BLOCK_SIZE;
+          else n_b = n_bytes / BLOCK_SIZE + 1;
+
+          p = strtok(NULL, "\r\n");
+          if (p == NULL) ret = -1;
+
+          else
+          {
+            strcpy(file_content, p + 1);
+
+            pthread_mutex_lock( &mutex );
+            int ascii_val = insert_to_str_arr(disk->fname_to_label, filename);
+            pthread_mutex_unlock( &mutex );
+
+            if (ascii_val == -1) {
+              printf("[thread %d] Disk already has enough files\n", (unsigned int)pthread_self());
+              //pthread_mutex_unlock( &mutex );
+              return -1;
+            }
+
+            char label = (char) 65+ascii_val;
+            //ret = disk_insert(disk, filename[0], n_b, &n_clusters);
+            pthread_mutex_lock( &mutex );
+            ret = disk_insert(disk, label, n_b, &n_clusters);
+            pthread_mutex_unlock( &mutex );
+            if (ret == -1) {
+              printf( "[thread %d] Disk is full\n", (unsigned int)pthread_self() );
+              return -1;
+            }
+
+            char serv_name[1024];
+            snprintf(serv_name, sizeof(serv_name), ".storage/%s", filename);
+            //FILE* f = fopen(serv_name, "w");
+            fp = fopen(serv_name, "w+");
+            if (fp == 0)
+            {
+              printf( "[thread %d] Could not open file\n", (unsigned int)pthread_self());
+              return -1;
+            }
+
+            fprintf(fp, "%s", file_content);
+            fclose(fp);
+            printf("[thread %d] Stored file '%c' (%d bytes; %d blocks; ", (unsigned int)pthread_self(), filename[0], n_bytes, n_b);
+            if (n_clusters == 1) printf("1 cluster)\n");
+            else printf("%d clusters)\n", n_clusters);
+
+            printf("[thread %d] Simulated Clustered Disk Space Allocation:\n", (unsigned int)pthread_self());
+            disk_display(disk);
+          }
+        }
+      }
+    }
+    else if (strcmp(p, "READ") == 0)
+    {
+      // READ <filename> <byte-offset> <length>\n
+      p = strtok(NULL, delim);
+      if (p == NULL)
+      {
+         ret = -1;
+      }
+      else
+      {
+        strcpy(filename, p);
+        printf("filename: %s", filename);
+        p = strtok(NULL, delim);
+        if (p == NULL) ret = -1;
+        else
+        {
+          bytes_offset = atoi(p);
+          printf("bytes_offset: %d\n", bytes_offset);
+          p = strtok(NULL, delim);
+          if (p == NULL) ret = -1;
+          else
+          {
+            length = atoi(p);
+            printf("length: %d\n", length);
+          }
+        }
+      }
+
+    }
+    else if (strcmp(p, "DELETE") == 0)
+    {
+      // DELETE <filename>\n
+      p = strtok(NULL, delim);
+      if (p == NULL) ret = -1;
+      else
+      {
+        strcpy(filename, p);
+        printf("filename: %s", filename);
+        // remove the file
+
+        // to do ????
+        pthread_mutex_lock( &mutex );
+        n_b = disk_delete(disk, filename[0]);
+        pthread_mutex_unlock( &mutex );
+
+        printf("[thread %d] Deleted %s file '%c' (deallocated %d blocks)\n", (unsigned int)pthread_self(), filename, filename[0], n_b);
+        printf("[thread %d] Simulated Clustered Disk Space Allocation:\n", (unsigned int)pthread_self());
+        disk_display(disk);
+      }
+    }
+    else ret = -1;
+  }
 
   if (ret == -1) printf( "[thread %d] Cannot parse the command\n", (unsigned int)pthread_self());
 
@@ -414,9 +411,9 @@ int main()
   //create a directory called storage if it does not exist
   struct stat st = {0};
 
-  if (stat("storage", &st) == -1) {
+  if (stat(".storage", &st) == -1) {
     printf("storage directory does not exist, make directory\n");
-    if (mkdir("storage", 0777) < 0) printf("Error: %d\n", mkdir("storage/directory", 0777));
+    if (mkdir(".storage", 0777) < 0) printf("Error: %d\n", mkdir(".storage/directory", 0777));
     else printf("create successfully\n");
   } else printf("the storage directory already exists\n");
 
