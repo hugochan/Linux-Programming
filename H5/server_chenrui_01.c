@@ -181,24 +181,24 @@ int disk_display(Disk * disk)
   return 0;
 }
 
-int parse_cmd(char * cmd, Disk * disk)
+int parse_cmd(char * cmd, Disk * disk, int sock)
 {
-  printf("the command is %s\n", cmd);
+  // printf("the command is %s\n", cmd);
   char * p = NULL;
   char delim[] = " ";
   char filename[100];
   FILE * fp;
   int ret = 0;
+  int i = 0;
 
-  if (strcmp(cmd, "DIR\r\n") == 0)
+  if (strcmp(cmd, "DIR\n") == 0)
   {
-    printf("yes, it is DIR\n");
+    // printf("yes, it is DIR\n");
     // DIR\n
     printf("There are currently %d files on the disk\n", disk->file_num);
     char** f_array = malloc(disk->file_num * sizeof(char*));
     get_files(f_array, disk->fname_to_label, disk->file_num);
     quicksort_strs(f_array, disk->file_num);
-    int i = 0;
     for(; i < disk->file_num; i++) {
       printf("%s\n", f_array[i]);
     }
@@ -206,8 +206,8 @@ int parse_cmd(char * cmd, Disk * disk)
   else
   {
     p = strtok(cmd, delim);
-    int n_bytes, n_b, n_clusters;
-    char file_content[1024];
+    int n_bytes, n_b, n_w, n_clusters;
+    // char file_content[1024];
     int bytes_offset, length;
     if (strcmp(p, "STORE") == 0)
     {
@@ -223,7 +223,7 @@ int parse_cmd(char * cmd, Disk * disk)
           return -1;
         }
 
-        p = strtok(NULL, "\\n");
+        p = strtok(NULL, "\n");
         if (p == NULL) ret = -1;
         else
         {
@@ -232,52 +232,77 @@ int parse_cmd(char * cmd, Disk * disk)
           if (n_bytes % BLOCK_SIZE == 0) n_b = n_bytes / BLOCK_SIZE;
           else n_b = n_bytes / BLOCK_SIZE + 1;
 
-          p = strtok(NULL, "\r\n");
-          if (p == NULL) ret = -1;
 
-          else
+          // recv file content
+          char buffer[BUFFER_SIZE];
+          /* can also use read() and write()..... */
+          if (n_bytes % BUFFER_SIZE == 0) n_w = n_bytes / BUFFER_SIZE;
+          else n_w = n_bytes / BUFFER_SIZE + 1;
+
+          //FILE* f = fopen(serv_name, "w");
+          char serv_name[1024];
+          snprintf(serv_name, sizeof(serv_name), ".storage/%s", filename);
+          fp = fopen(serv_name, "w+");
+          if (fp == 0)
           {
-            strcpy(file_content, p + 1);
-
-            pthread_mutex_lock( &mutex );
-            int ascii_val = insert_to_str_arr(disk->fname_to_label, filename);
-            pthread_mutex_unlock( &mutex );
-
-            if (ascii_val == -1) {
-              printf("[thread %d] Disk already has enough files\n", (unsigned int)pthread_self());
-              //pthread_mutex_unlock( &mutex );
-              return -1;
-            }
-
-            char label = (char) 65+ascii_val;
-            //ret = disk_insert(disk, filename[0], n_b, &n_clusters);
-            pthread_mutex_lock( &mutex );
-            ret = disk_insert(disk, label, n_b, &n_clusters);
-            pthread_mutex_unlock( &mutex );
-            if (ret == -1) {
-              printf( "[thread %d] Disk is full\n", (unsigned int)pthread_self() );
-              return -1;
-            }
-
-            char serv_name[1024];
-            snprintf(serv_name, sizeof(serv_name), ".storage/%s", filename);
-            //FILE* f = fopen(serv_name, "w");
-            fp = fopen(serv_name, "w+");
-            if (fp == 0)
-            {
-              printf( "[thread %d] Could not open file\n", (unsigned int)pthread_self());
-              return -1;
-            }
-
-            fprintf(fp, "%s", file_content);
-            fclose(fp);
-            printf("[thread %d] Stored file '%c' (%d bytes; %d blocks; ", (unsigned int)pthread_self(), filename[0], n_bytes, n_b);
-            if (n_clusters == 1) printf("1 cluster)\n");
-            else printf("%d clusters)\n", n_clusters);
-
-            printf("[thread %d] Simulated Clustered Disk Space Allocation:\n", (unsigned int)pthread_self());
-            disk_display(disk);
+            printf( "[thread %d] Could not open file\n", (unsigned int)pthread_self());
+            return -1;
           }
+
+          for (i = 0; i < n_w; i++)
+          {
+            int n = recv( sock, buffer, BUFFER_SIZE, 0 );
+            if ( n < 0 )
+            {
+              perror( "\nrecv() failed" );
+              return -2;
+            }
+            else if ( n == 0 )
+            {
+              printf( "\n[thread %d] Rcvd 0 from recv(); closing socket\n",
+                (unsigned int)pthread_self() );
+              return -2;
+            }
+            else
+            {
+              buffer[n] = '\0';  /* assuming text.... */
+              if (i == 0) printf( "[thread %d] Rcvd: ", (unsigned int)pthread_self());
+              printf( "%s", buffer );
+
+              fprintf(fp, "%s", buffer);
+            }
+          }
+          fclose(fp);
+          fflush( NULL );
+
+          pthread_mutex_lock( &mutex );
+          int ascii_val = insert_to_str_arr(disk->fname_to_label, filename);
+          pthread_mutex_unlock( &mutex );
+
+          if (ascii_val == -1) {
+            printf("[thread %d] Disk already has enough files\n", (unsigned int)pthread_self());
+            //pthread_mutex_unlock( &mutex );
+            return -1;
+          }
+
+          char label = (char) 65+ascii_val;
+          //ret = disk_insert(disk, filename[0], n_b, &n_clusters);
+          pthread_mutex_lock( &mutex );
+          ret = disk_insert(disk, label, n_b, &n_clusters);
+          pthread_mutex_unlock( &mutex );
+          if (ret == -1) {
+            printf( "[thread %d] Disk is full\n", (unsigned int)pthread_self() );
+            return -1;
+          }
+
+
+          printf("[thread %d] Stored file '%c' (%d bytes; %d blocks; ", (unsigned int)pthread_self(), label, n_bytes, n_b);
+          if (n_clusters == 1) printf("1 cluster)\n");
+          else printf("%d clusters)\n", n_clusters);
+
+          printf("[thread %d] Simulated Clustered Disk Space Allocation:\n", (unsigned int)pthread_self());
+          disk_display(disk);
+          // }
         }
       }
     }
@@ -341,7 +366,7 @@ int parse_cmd(char * cmd, Disk * disk)
 
 void * thread_job( void * arg )
 {
-  int n;
+  int n, ret;
   char buffer[ BUFFER_SIZE ];
   ThreadArg * thread_arg = (ThreadArg *) arg;
   do
@@ -367,7 +392,9 @@ void * thread_job( void * arg )
               buffer );
 
 
-      parse_cmd(buffer, thread_arg->disk);
+      ret = parse_cmd(buffer, thread_arg->disk, thread_arg->sock);
+      if (ret == -2) break; // remote client side has closed its socket
+
       /* send ack message back to the client */
       n = send( thread_arg->sock, "ACK\n", 4, 0 );
       printf( "[thread %d] Sent: ACK\n",
