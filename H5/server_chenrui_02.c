@@ -129,11 +129,12 @@ void quicksort_strs(char** args, unsigned int len)
 
 int init_disk(Disk * disk, int blocksize, int n_blocks)
 {
+  int i;
   disk->n_blocks = n_blocks;
   disk->blocksize = blocksize;
   disk->n_free = n_blocks;
   disk->buff = malloc(sizeof(char)*n_blocks);
-  for (int i = 0; i < n_blocks; i++)
+  for (i = 0; i < n_blocks; i++)
   {
     disk->buff[i] = DISK_PLACE_HOLDER;
   }
@@ -169,8 +170,8 @@ int disk_insert(Disk * disk, char fd, int need_blocks, int * n_clusters)
 
 int disk_delete(Disk * disk, char fd)
 {
-  int n_b = 0;
-  for (int i = 0;i < disk->n_blocks; i++)
+  int i, n_b = 0;
+  for (i = 0;i < disk->n_blocks; i++)
   {
     if (disk->buff[i] == fd)
     {
